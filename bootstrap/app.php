@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Daftarkan alias middleware di sini agar bisa dipanggil di web.php
         $middleware->alias([
             'checkRole' => \App\Http\Middleware\CheckRole::class,
+            'checkSuspended' => \App\Http\Middleware\CheckSuspended::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

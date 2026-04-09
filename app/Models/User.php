@@ -20,6 +20,8 @@ class User extends Authenticatable
     'Alamat', 
     'NoPonsel', 
     'Role',
+    'Status',        // Pastikan ada
+    'AlasanBlokir'
         ];
 
     // Beritahu Laravel kolom password kita namanya 'Password'

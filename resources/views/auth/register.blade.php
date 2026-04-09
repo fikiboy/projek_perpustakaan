@@ -40,10 +40,27 @@
                     <input type="text" name="NoPonsel" class="form-control border-0 bg-light" placeholder="Masukka No Ponsel" value="{{ old('NoPonsel') }}" required>
                 </div>
 
-                <div class="col-md-12 mb-4">
-                    <label class="form-label small fw-bold text-secondary">Alamat</label>
-                    <textarea name="Alamat" class="form-control border-0 bg-light" rows="2" placeholder="Tulis alamat lengkap..." required>{{ old('Alamat') }}</textarea>
-                </div>
+                <div class="mb-3">
+    <label class="form-label small fw-bold">Alamat (Khusus Daerah Gunungputri)</label>
+    <div class="input-group">
+        <span class="input-group-text bg-light border-0"><i class="fa-solid fa-location-dot text-primary"></i></span>
+        <input type="text" name="Alamat" list="desa-gunungputri" class="form-control bg-light border-0 py-2 px-3" placeholder="Pilih Desa atau Ketik Alamat Lengkap..." required>
+    </div>
+    
+    <datalist id="desa-gunungputri">
+        <option value="Gunung Putri">
+        <option value="Wanaherang">
+        <option value="Tlajung Udik">
+        <option value="Bojong Kulur">
+        <option value="Bojong Nangka">
+        <option value="Cicadas">
+        <option value="Cikeas Udik">
+        <option value="Ciangsana">
+        <option value="Nagrak">
+        <option value="Karanggan">
+    </datalist>
+    <small class="text-muted" style="font-size: 10px;">*Pilih desa di Gunungputri atau ketik alamat lengkap kamu.</small>
+</div>
             </div>
             
             <div class="d-grid gap-2">

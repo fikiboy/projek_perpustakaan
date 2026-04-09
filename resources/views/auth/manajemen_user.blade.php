@@ -4,7 +4,7 @@
 <div class="container mt-4 animate__animated animate__fadeIn">
     <div class="mb-5">
         <h4 class="fw-bold text-primary mb-1"><i class="fa-solid fa-users-gear me-2"></i>Manajemen Pengguna</h4>
-        <p class="text-muted small">Daftar seluruh pengguna sistem perpustakaan iBooku</p>
+        <p class="text-muted small">Kelola pengguna dan persetujuan akun pendaftar baru</p>
     </div>
     
     @if(Auth::user()->Role == 'administrator')
@@ -13,6 +13,7 @@
     </button>
     @endif
 
+    {{-- Kategori Administrator --}}
     <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
             <i class="fa-solid fa-user-gear text-danger fs-5 me-2"></i>
@@ -26,6 +27,7 @@
         </div>
     </div>
 
+    {{-- Kategori Petugas --}}
     <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
             <i class="fa-solid fa-user-shield text-primary fs-5 me-2"></i>
@@ -39,6 +41,7 @@
         </div>
     </div>
 
+    {{-- Kategori Peminjam --}}
     <div class="mb-5">
         <div class="d-flex align-items-center mb-3">
             <i class="fa-solid fa-users text-secondary fs-5 me-2"></i>
@@ -54,6 +57,7 @@
 </div>
 
 @if(Auth::user()->Role == 'administrator')
+{{-- Modal Tambah Petugas --}}
 <div class="modal fade" id="modalPetugas" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -81,9 +85,21 @@
                         <input type="text" name="NamaLengkap" class="form-control rounded-pill bg-light border-0 py-2 px-3" placeholder="Nama Lengkap" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">Alamat</label>
-                        <textarea name="Alamat" class="form-control rounded-4 bg-light border-0 px-3" rows="3" placeholder="Alamat Lengkap" required></textarea>
-                    </div>
+    <label class="form-label small fw-bold">Alamat</label>
+    <input type="text" name="Alamat" list="desa-petugas" class="form-control rounded-pill bg-light border-0 py-2 px-3" placeholder="Pilih atau Ketik Alamat..." required>
+    <datalist id="desa-petugas">
+        <option value="Gunung Putri">
+        <option value="Wanaherang">
+        <option value="Tlajung Udik">
+        <option value="Bojong Kulur">
+        <option value="Bojong Nangka">
+        <option value="Cicadas">
+        <option value="Cikeas Udik">
+        <option value="Ciangsana">
+        <option value="Nagrak">
+        <option value="Karanggan">
+    </datalist>
+</div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0">
                     <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold py-2 shadow-sm">Simpan Akun Petugas</button>
@@ -94,6 +110,7 @@
 </div>
 @endif
 
+{{-- Modal Edit Role --}}
 @foreach($users as $u)
     @if($u->UserID != Auth::id())
     <div class="modal fade" id="modalEditRole{{ $u->UserID }}" tabindex="-1" aria-hidden="true">
@@ -107,24 +124,16 @@
                     @csrf
                     @method('PUT')
                     <div class="modal-body p-4">
-                        <p class="text-muted small mb-3">Pilih akses untuk <strong>{{ $u->NamaLengkap }}</strong>:</p>
-                        
                         <div class="d-grid gap-2">
                             <input type="radio" class="btn-check" name="Role" id="role1_{{ $u->UserID }}" value="peminjam" {{ $u->Role == 'peminjam' ? 'checked' : '' }}>
-                            <label class="btn btn-outline-secondary rounded-pill text-start px-3 py-2" for="role1_{{ $u->UserID }}">
-                                <i class="fa-solid fa-users me-2"></i> Peminjam
-                            </label>
+                            <label class="btn btn-outline-secondary rounded-pill text-start px-3 py-2" for="role1_{{ $u->UserID }}">Peminjam</label>
 
                             <input type="radio" class="btn-check" name="Role" id="role2_{{ $u->UserID }}" value="petugas" {{ $u->Role == 'petugas' ? 'checked' : '' }}>
-                            <label class="btn btn-outline-primary rounded-pill text-start px-3 py-2" for="role2_{{ $u->UserID }}">
-                                <i class="fa-solid fa-user-shield me-2"></i> Petugas
-                            </label>
+                            <label class="btn btn-outline-primary rounded-pill text-start px-3 py-2" for="role2_{{ $u->UserID }}">Petugas</label>
 
                             @if(Auth::user()->Role == 'administrator')
                             <input type="radio" class="btn-check" name="Role" id="role3_{{ $u->UserID }}" value="administrator" {{ $u->Role == 'administrator' ? 'checked' : '' }}>
-                            <label class="btn btn-outline-danger rounded-pill text-start px-3 py-2" for="role3_{{ $u->UserID }}">
-                                <i class="fa-solid fa-user-gear me-2"></i> Administrator
-                            </label>
+                            <label class="btn btn-outline-danger rounded-pill text-start px-3 py-2" for="role3_{{ $u->UserID }}">Administrator</label>
                             @endif
                         </div>
                     </div>
@@ -139,22 +148,7 @@
 @endforeach
 
 <style>
-    .table-container { 
-        background: white; 
-        border-radius: 15px; 
-        overflow: hidden; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        border: 1px solid #f1f1f1;
-    }
-    .form-control:focus {
-        background-color: #fff !important;
-        border: 1px solid #0d6efd !important;
-        box-shadow: 0 0 0 0.25rem rgba(13,110,253,.1) !important;
-    }
-    .modal-backdrop { z-index: 1040 !important; }
-    .modal { z-index: 1050 !important; }
-    
-    /* Style untuk radio button yang tampak seperti tombol biasa */
+    .table-container { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #f1f1f1; }
     .btn-check:checked + .btn-outline-primary { background-color: #0d6efd; color: white; }
     .btn-check:checked + .btn-outline-danger { background-color: #dc3545; color: white; }
     .btn-check:checked + .btn-outline-secondary { background-color: #6c757d; color: white; }
@@ -164,30 +158,18 @@
 <script>
 function confirmDeleteUser(userId, userName) {
     Swal.fire({
-        title: 'Apakah anda yakin?',
+        title: 'Hapus Akun?',
         text: "Akun " + userName + " akan dihapus permanen!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Ya, Hapus!',
-        cancelButtonText: 'Batal',
-        borderRadius: '15px'
+        confirmButtonText: 'Ya, Hapus!'
     }).then((result) => {
-        if (result.isConfirmed) {
-            document.getElementById('delete-form-' + userId).submit();
-        }
+        if (result.isConfirmed) document.getElementById('delete-form-' + userId).submit();
     })
 }
-
 @if(session('success'))
-    Swal.fire({
-        icon: 'success',
-        title: 'Berhasil!',
-        text: "{{ session('success') }}",
-        showConfirmButton: false,
-        timer: 2000
-    });
+    Swal.fire({ icon: 'success', title: 'Berhasil!', text: "{{ session('success') }}", showConfirmButton: false, timer: 2000 });
 @endif
 </script>
 @endsection

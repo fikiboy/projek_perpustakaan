@@ -14,7 +14,6 @@ class BukuController extends Controller
     public function show($id)
     {
         $buku = Buku::findOrFail($id);
-        // Mengambil ulasan beserta user yang memberi ulasan
         $ulasan = UlasanBuku::where('BukuID', $id)->with('user')->get();
         return view('buku.detail', compact('buku', 'ulasan'));
     }
@@ -24,7 +23,6 @@ class BukuController extends Controller
     {
         $buku = Buku::findOrFail($id);
 
-        // Tambahan: Cek ketersediaan buku sebelum menampilkan form
         $cek = Peminjaman::where('BukuID', $id)->where('StatusPeminjaman', 'Dipinjam')->exists();
         if ($cek) {
             return redirect()->route('dashboard')->with('error', 'Maaf, buku ini sedang dipinjam.');
@@ -33,22 +31,19 @@ class BukuController extends Controller
         return view('buku.pinjam_form', compact('buku'));
     }
 
-    // Proses Simpan Peminjaman (Sudah Digabung & Rapih)
+    // Proses Simpan Peminjaman
     public function storePeminjaman(Request $request, $id)
     {
-        // 1. Validasi Input
         $request->validate([
             'TanggalPengembalian' => 'required|date|after:today',
         ]);
 
-        // 2. Cek Ketersediaan (Keamanan ganda jika user tembak URL)
         $cek = Peminjaman::where('BukuID', $id)->where('StatusPeminjaman', 'Dipinjam')->exists();
         
         if ($cek) {
             return redirect()->route('dashboard')->with('error', 'Maaf, buku ini baru saja dipinjam orang lain.');
         }
 
-        // 3. Simpan Data Peminjaman
         Peminjaman::create([
             'UserID' => Auth::id(),
             'BukuID' => $id,
@@ -59,4 +54,61 @@ class BukuController extends Controller
 
         return redirect()->route('dashboard')->with('success_pinjam', 'Buku berhasil dipinjam! Silakan cek menu Koleksi.');
     }
+
+    // --- FITUR PENGEMBALIAN UNTUK USER ---
+    public function kembalikanBuku($id)
+    {
+        $peminjaman = Peminjaman::findOrFail($id);
+
+        // Update status menjadi menunggu pengecekan petugas
+        $peminjaman->update([
+            'StatusPeminjaman' => 'Menunggu Pengecekan',
+        ]);
+
+        return redirect()->back()->with('info_proses', 'Mohon tunggu, buku sedang dicek oleh petugas.');
+    }
+
+    // --- FITUR APPROVAL UNTUK PETUGAS/ADMIN ---
+    
+    // 1. Jika Petugas Setuju
+    public function setujuiKembali($id)
+    {
+        $peminjaman = Peminjaman::findOrFail($id);
+        
+        $peminjaman->update([
+            'StatusPeminjaman' => 'Dikembalikan',
+            'TanggalPengembalian' => now(), 
+        ]);
+
+        // Stok buku bertambah kembali otomatis
+        $peminjaman->buku->increment('Stok');
+
+        return redirect()->back()->with('success', 'Pengembalian disetujui dan stok buku telah bertambah!');
+    }
+
+    // 2. Jika Petugas Tolak (Otomatis Suspend User)
+    public function tolakKembali(Request $request, $id)
+    {
+        $peminjaman = Peminjaman::findOrFail($id);
+        
+        $peminjaman->update([
+            'StatusPeminjaman' => 'Ditolak'
+        ]);
+
+        $user = $peminjaman->user;
+        $user->update([
+            'Status' => 'Ditolak',
+            'AlasanBlokir' => $request->alasan 
+        ]);
+
+        return redirect()->back()->with('success', 'Pengembalian ditolak! Akun user otomatis ditangguhkan.');
+    }
+
+    public function destroyLaporan($id)
+{
+    $peminjaman = Peminjaman::findOrFail($id);
+    $peminjaman->delete();
+
+    return redirect()->back()->with('success', 'Laporan berhasil dihapus dari database.');
 }
+} // Penutup Class

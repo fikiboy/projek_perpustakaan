@@ -45,26 +45,47 @@ class AuthController extends Controller
             'NamaLengkap' => $request->NamaLengkap,
             'NoPonsel' => $request->NoPonsel,
             'Alamat' => $request->Alamat,
-            'Role' => 'peminjam', // Gunakan lowercase agar konsisten
+            'Role' => 'peminjam',
+            'Status' => 'Pending', // Pendaftar baru otomatis Pending
         ]);
 
-        return back()->with('registration_success', true);
+        return redirect()->route('login')->with('wait_admin', 'Pendaftaran Berhasil! Mohon tunggu persetujuan Admin agar akun Anda aktif.');
     }
 
-    public function login(Request $request) {
-        $credentials = [
-            'Email' => $request->Email,
-            'password' => $request->Password,
-        ];
+    // Cari fungsi login, ubah bagian pengecekan status
+public function login(Request $request) {
+    $credentials = [
+        'Email' => $request->Email,
+        'password' => $request->Password,
+    ];
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-            return redirect()->intended('/dashboard');
+    // 1. Biarkan mereka login dulu untuk mengecek password
+    if (Auth::attempt($credentials)) {
+        $user = Auth::user();
+
+        // 2. Cek apakah statusnya Pending
+        if ($user->Status === 'Pending') {
+            Auth::logout(); // Kalau pending, kita keluarkan
+            return back()->with('login_gagal', 'Akun Anda sedang dalam antrean persetujuan.');
         }
 
-        return back()->with('login_gagal', 'Akun tidak ditemukan atau kata sandi salah!');
+        // 3. LOGIKA SUSPEND: Tetap biarkan login, tapi kirim session suspended
+        if ($user->Status === 'Ditolak') {
+            // Kita tidak logout di sini, agar user masuk ke dashboard 
+            // tapi disambut oleh pop-up "Super Lock" di app.blade.php
+            return redirect()->intended('/dashboard')->with('suspended', [
+                'alasan' => $user->AlasanBlokir ?? 'Pelanggaran pengembalian buku.',
+                'username' => $user->Username
+            ]);
+        }
+
+        // 4. Jika Aktif, masuk normal
+        $request->session()->regenerate();
+        return redirect()->intended('/dashboard');
     }
 
+    return back()->with('login_gagal', 'Email atau password salah!');
+}
     public function logout(Request $request)
     {
         Auth::logout();
@@ -73,14 +94,10 @@ class AuthController extends Controller
         return redirect('/');
     }
 
-    // --- MANAJEMEN USER METHODS (TAMBAHAN BARU) ---
+    // --- MANAJEMEN USER METHODS ---
 
-    /**
-     * Menampilkan halaman daftar pengguna
-     */
     public function indexUser()
     {
-        // Pastikan hanya admin/petugas yang bisa buka
         if (Auth::user()->Role == 'peminjam') {
             return redirect('/dashboard');
         }
@@ -90,8 +107,20 @@ class AuthController extends Controller
     }
 
     /**
-     * Menambahkan petugas baru oleh Administrator
+     * FUNGSI GANTI STATUS (Baru)
+     * Mengaktifkan atau menonaktifkan user langsung dari tabel
      */
+    public function toggleStatus($id) {
+        $user = User::findOrFail($id);
+        
+        // Jika status Aktif, ubah jadi Pending (Suspend)
+        // Jika status selain Aktif (Pending/NULL), ubah jadi Aktif (Approve)
+        $user->Status = ($user->Status == 'Aktif') ? 'Pending' : 'Aktif';
+        $user->save();
+        
+        return back()->with('success', 'Status ' . $user->NamaLengkap . ' berhasil diperbarui!');
+    }
+
     public function tambahPetugas(Request $request)
     {
         $request->validate([
@@ -108,21 +137,18 @@ class AuthController extends Controller
             'Password' => Hash::make($request->Password),
             'NamaLengkap' => $request->NamaLengkap,
             'Alamat' => $request->Alamat,
-            'NoPonsel' => '-', // Default untuk petugas baru
+            'NoPonsel' => '-', 
             'Role' => 'petugas',
+            'Status' => 'Aktif',
         ]);
 
         return back()->with('success', 'Petugas baru berhasil didaftarkan!');
     }
 
-    /**
-     * Mengubah Role Pengguna
-     */
     public function updateRole(Request $request, $id)
     {
         $user = User::findOrFail($id);
 
-        // Proteksi: Tidak bisa ubah role diri sendiri
         if ($user->UserID == Auth::id()) {
             return back()->with('error', 'Anda tidak bisa mengubah role sendiri!');
         }
@@ -131,21 +157,15 @@ class AuthController extends Controller
             'Role' => 'required|in:peminjam,petugas,administrator'
         ]);
 
-        $user->update([
-            'Role' => $request->Role
-        ]);
+        $user->update(['Role' => $request->Role]);
 
         return back()->with('success', 'Role ' . $user->NamaLengkap . ' berhasil diubah menjadi ' . $request->Role);
     }
 
-    /**
-     * Menghapus Pengguna
-     */
     public function hapusUser($id)
     {
         $user = User::findOrFail($id);
 
-        // Proteksi: Tidak bisa hapus diri sendiri
         if ($user->UserID == Auth::id()) {
             return back()->with('error', 'Anda tidak bisa menghapus akun sendiri!');
         }
@@ -171,6 +191,7 @@ class AuthController extends Controller
                     'Role'        => 'peminjam',
                     'NoPonsel'    => '-', 
                     'Alamat'      => '-',
+                    'Status'      => 'Aktif',
                 ]);
             }
 

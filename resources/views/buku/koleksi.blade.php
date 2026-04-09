@@ -28,7 +28,6 @@
                 @forelse($koleksi as $item)
                 @php 
                     $buku = $item->buku; 
-                    // Pastikan relasi ulasanUser ada di model Buku
                     $ulasan = $buku->ulasanUser; 
                 @endphp
                 <div class="col-md-6 col-lg-4 mb-4">
@@ -42,7 +41,13 @@
                             <div class="p-3 d-flex flex-column justify-content-between" style="width: 60%;">
                                 <div>
                                     <div class="mb-2">
-                                        <span class="badge {{ $item->StatusPeminjaman == 'Dipinjam' ? 'bg-primary' : 'bg-success' }} rounded-pill small px-3">
+                                        @php
+                                            $badgeClass = 'bg-primary';
+                                            if($item->StatusPeminjaman == 'Menunggu Pengecekan') $badgeClass = 'bg-warning text-dark';
+                                            elseif($item->StatusPeminjaman == 'Dikembalikan') $badgeClass = 'bg-success';
+                                            elseif($item->StatusPeminjaman == 'Ditolak') $badgeClass = 'bg-danger';
+                                        @endphp
+                                        <span class="badge {{ $badgeClass }} rounded-pill small px-3">
                                             {{ $item->StatusPeminjaman }}
                                         </span>
                                     </div>
@@ -73,6 +78,7 @@
                                 </div>
 
                                 <div class="d-grid gap-2">
+                                    {{-- TOMBOL ULASAN --}}
                                     @if(!$ulasan)
                                         <a href="{{ route('buku.detail', $buku->BukuID) }}#form-ulasan" class="btn btn-warning btn-sm fw-bold rounded-pill text-white" style="font-size: 11px;">
                                             <i class="fa-solid fa-star me-1"></i> Beri Ulasan
@@ -83,17 +89,34 @@
                                         </a>
                                     @endif
 
-                                    <a href="{{ route('peminjaman.bukti', $item->PeminjamanID) }}" class="btn btn-light btn-sm border fw-bold rounded-pill" style="font-size: 11px;">
-                                        <i class="fa-solid fa-print me-1"></i> Bukti Pinjam
-                                    </a>
-                                    
+                                    {{-- LOGIKA TOMBOL STATUS DITANGANI DISINI --}}
                                     @if($item->StatusPeminjaman == 'Dipinjam')
-                                    <form action="{{ route('buku.kembalikan', $item->PeminjamanID) }}" method="POST">
-                                        @csrf
-                                        <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill" style="font-size: 11px;">
-                                            Kembalikan Buku
+                                        <a href="{{ route('peminjaman.bukti', $item->PeminjamanID) }}" class="btn btn-light btn-sm border fw-bold rounded-pill" style="font-size: 11px;">
+                                            <i class="fa-solid fa-print me-1"></i> Bukti Pinjam
+                                        </a>
+
+                                        <form action="{{ route('buku.kembalikan', $item->PeminjamanID) }}" method="POST">
+                                            @csrf
+                                            @method('PUT')
+                                            <button type="submit" class="btn btn-primary btn-sm w-100 fw-bold rounded-pill" style="font-size: 11px;">
+                                                <i class="fa-solid fa-rotate-left me-1"></i> Kembalikan Buku
+                                            </button>
+                                        </form>
+                                    @elseif($item->StatusPeminjaman == 'Menunggu Pengecekan')
+                                        <button class="btn btn-warning btn-sm w-100 fw-bold rounded-pill text-white shadow-sm" style="font-size: 11px;" disabled>
+                                            <i class="fa-solid fa-hourglass-half me-1"></i> Menunggu Pengecekan
                                         </button>
-                                    </form>
+                                    @elseif($item->StatusPeminjaman == 'Dikembalikan')
+                                        <a href="{{ route('peminjaman.bukti', $item->PeminjamanID) }}" class="btn btn-success btn-sm fw-bold rounded-pill shadow-sm text-white" style="font-size: 11px;">
+                                            <i class="fa-solid fa-file-invoice me-1"></i> Bukti Pengembalian
+                                        </a>
+                                        <div class="alert alert-success py-1 px-2 rounded-pill text-center mb-0" style="font-size: 10px;">
+                                            <i class="fa-solid fa-check-circle"></i> Selesai Dikembalikan
+                                        </div>
+                                    @elseif($item->StatusPeminjaman == 'Ditolak')
+                                        <div class="alert alert-danger py-1 px-2 rounded-pill text-center mb-0" style="font-size: 10px;">
+                                            <i class="fa-solid fa-circle-xmark"></i> Pengembalian Ditolak
+                                        </div>
                                     @endif
                                 </div>
                             </div>
@@ -149,10 +172,8 @@
 <style>
     .card-koleksi { transition: 0.3s; border: 1px solid #eee; }
     .card-koleksi:hover { transform: translateY(-5px); box-shadow: 0 12px 20px rgba(0,0,0,0.1) !important; }
-    
     .nav-pills .nav-link.active { background-color: #4e73df; }
     .nav-pills .nav-link { color: #5a5c69; margin-right: 5px; }
-    
     .border-dashed { border: 2px dashed #dee2e6; }
 </style>
 @endsection

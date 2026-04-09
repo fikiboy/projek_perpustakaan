@@ -8,20 +8,34 @@ return new class extends Migration
 {
     public function up()
 {
-    Schema::table('buku', function (Blueprint $table) {
-        // Tambah kolom KategoriID sebagai Foreign Key
-        $table->unsignedBigInteger('KategoriID')->nullable()->after('BukuID');
-        
-        // Opsional: Hubungkan secara formal (Foreign Key Constraint)
-        $table->foreign('KategoriID')->references('KategoriID')->on('kategoribuku')->onDelete('set null');
+    Schema::table('users', function (Blueprint $table) {
+        // Jika kolom Status belum ada, buat baru. Jika sudah ada, ubah tipenya.
+        if (!Schema::hasColumn('users', 'Status')) {
+            $table->enum('Status', ['Pending', 'Aktif', 'Ditolak'])->default('Pending');
+        } else {
+            // Gunakan string jika tidak ingin install doctrine/dbal, atau tetap enum jika sudah ada
+            $table->string('Status')->default('Pending')->change(); 
+        }
+
+        // Tambahkan kolom AlasanBlokir jika belum ada
+        if (!Schema::hasColumn('users', 'AlasanBlokir')) {
+            $table->text('AlasanBlokir')->nullable()->after('Status');
+        }
     });
 }
 
-public function down()
+public function down(): void
 {
-    Schema::table('buku', function (Blueprint $table) {
-        $table->dropForeign(['KategoriID']);
-        $table->dropColumn('KategoriID');
+    Schema::table('users', function (Blueprint $table) {
+        // Cek dulu baru hapus, supaya tidak error Syntax Error 1091 lagi
+        if (Schema::hasColumn('users', 'AlasanBlokir')) {
+            $table->dropColumn('AlasanBlokir');
+        }
+        
+        // Kembalikan Status ke default awal jika perlu
+        if (Schema::hasColumn('users', 'Status')) {
+            $table->enum('Status', ['Pending', 'Aktif'])->default('Pending')->change();
+        }
     });
 }
 };

@@ -31,66 +31,62 @@ Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
 Route::middleware(['auth'])->group(function () {
     
     // 1. DASHBOARD
-    // 1. DASHBOARD dengan Notifikasi Tugas
-Route::get('/dashboard', function (Request $request) {
-    $search = $request->query('search');
-    $kategoriId = $request->query('kategori'); 
-    
-    $jumlahPinjam = Peminjaman::where('UserID', Auth::id())
-                    ->where('StatusPeminjaman', 'Dipinjam')
-                    ->count();
-
-    // --- SISTEM NOTIFIKASI OTOMATIS ---
-    $notif = null;
-
-    if (Auth::user()->Role != 'peminjam') {
-        // Notif untuk Petugas/Admin: Cek permintaan 'Menunggu'
-        $waitingCount = Peminjaman::where('StatusPeminjaman', 'Menunggu')->count();
-        if ($waitingCount > 0) {
-            $notif = [
-                'title' => 'Perhatian Petugas!',
-                'text' => "Ada $waitingCount permintaan pinjaman baru yang menunggu persetujuan Anda.",
-                'icon' => 'warning',
-                'button' => 'Lihat Laporan'
-            ];
-        }
-    } else {
-        // Notif untuk Peminjam: Cek buku yang sedang dipinjam
-        $activeBorrow = Peminjaman::where('UserID', Auth::id())
+    Route::get('/dashboard', function (Request $request) {
+        $search = $request->query('search');
+        $kategoriId = $request->query('kategori'); 
+        
+        $jumlahPinjam = Peminjaman::where('UserID', Auth::id())
                         ->where('StatusPeminjaman', 'Dipinjam')
                         ->count();
-        if ($activeBorrow > 0) {
-            $notif = [
-                'title' => 'Halo Pembaca!',
-                'text' => "Kamu sedang meminjam $activeBorrow buku. Jangan lupa jaga kondisi buku dan kembalikan tepat waktu ya!",
-                'icon' => 'info',
-                'button' => 'Oke, Siap!'
-            ];
+
+        $notif = null;
+
+        if (Auth::user()->Role != 'peminjam') {
+            $waitingCount = Peminjaman::where('StatusPeminjaman', 'Menunggu')->count();
+            $returnCount = Peminjaman::where('StatusPeminjaman', 'Proses Kembali')->count();
+            
+            if ($waitingCount > 0 || $returnCount > 0) {
+                $notif = [
+                    'title' => 'Perhatian Petugas!',
+                    'text' => "Ada $waitingCount permintaan baru dan $returnCount buku menunggu pengecekan.",
+                    'icon' => 'warning',
+                    'button' => 'Lihat Laporan'
+                ];
+            }
+        } else {
+            $activeBorrow = Peminjaman::where('UserID', Auth::id())
+                            ->where('StatusPeminjaman', 'Dipinjam')
+                            ->count();
+            if ($activeBorrow > 0) {
+                $notif = [
+                    'title' => 'Halo Pembaca!',
+                    'text' => "Kamu sedang meminjam $activeBorrow buku. Jangan lupa kembalikan tepat waktu ya!",
+                    'icon' => 'info',
+                    'button' => 'Oke, Siap!'
+                ];
+            }
         }
-    }
 
-    $query = Buku::with('kategori');
+        $query = Buku::with('kategori');
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('Judul', 'LIKE', "%{$search}%")
+                  ->orWhere('Penulis', 'LIKE', "%{$search}%");
+            });
+        }
+        if ($kategoriId) {
+            $query->where('KategoriID', $kategoriId);
+        }
 
-    if ($search) {
-        $query->where(function($q) use ($search) {
-            $q->where('Judul', 'LIKE', "%{$search}%")
-              ->orWhere('Penulis', 'LIKE', "%{$search}%");
-        });
-    }
+        $buku = $query->get();
+        $daftarKategori = KategoriBuku::all();
 
-    if ($kategoriId) {
-        $query->where('KategoriID', $kategoriId);
-    }
-
-    $buku = $query->get();
-    $daftarKategori = KategoriBuku::all();
-
-    return view('dashboard', compact('jumlahPinjam', 'buku', 'search', 'daftarKategori', 'kategoriId', 'notif'));
-})->name('dashboard');
+        return view('dashboard', compact('jumlahPinjam', 'buku', 'search', 'daftarKategori', 'kategoriId', 'notif'));
+    })->name('dashboard');
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // 2. PINJAM & KEMBALIKAN (Sistem Request/Menunggu)
+    // 2. PINJAM & KEMBALIKAN
     Route::get('/buku/detail/{id}', [BukuController::class, 'show'])->name('buku.detail');
     
     Route::post('/buku/pinjam/{id}', function ($id) {
@@ -99,7 +95,7 @@ Route::get('/dashboard', function (Request $request) {
 
         $sudahPinjam = Peminjaman::where('UserID', Auth::id())
                         ->where('BukuID', $id)
-                        ->whereIn('StatusPeminjaman', ['Menunggu', 'Dipinjam'])
+                        ->whereIn('StatusPeminjaman', ['Menunggu', 'Dipinjam', 'Proses Kembali'])
                         ->exists();
 
         if ($sudahPinjam) return back()->with('error', 'Kamu sudah mengajukan pinjaman atau sedang meminjam buku ini!');
@@ -112,18 +108,11 @@ Route::get('/dashboard', function (Request $request) {
             'TanggalPengembalian' => null 
         ]);
 
-        return back()->with('success_tambah', 'Permintaan pinjam telah terkirim! Menunggu persetujuan petugas.');
+        return back()->with('success_tambah', 'Permintaan pinjam terkirim! Menunggu persetujuan.');
     })->name('buku.pinjam.store');
 
-    Route::post('/buku/kembalikan/{id}', function ($id) {
-        $pinjam = Peminjaman::findOrFail($id);
-        $pinjam->update([
-            'StatusPeminjaman' => 'Dikembalikan', 
-            'TanggalPengembalian' => now()
-        ]);
-        $pinjam->buku->increment('Stok');
-        return back()->with('success_kembali', 'Buku dikembalikan!');
-    })->name('buku.kembalikan');
+    // Logika Pengembalian (Update ke Controller)
+    Route::put('/buku/kembalikan/{id}', [BukuController::class, 'kembalikanBuku'])->name('buku.kembalikan');
 
     Route::get('/peminjaman/bukti/{id}', function ($id) {
         $pinjam = Peminjaman::with(['user', 'buku'])->findOrFail($id);
@@ -142,11 +131,10 @@ Route::get('/dashboard', function (Request $request) {
     // 4. MANAJEMEN BUKU & PEMINJAMAN (Admin & Petugas)
     Route::middleware(['checkRole:administrator,petugas'])->group(function () {
         
-        // Approve & Tolak Peminjaman
+        // Approve & Tolak Peminjaman Awal
         Route::put('/peminjaman/approve/{id}', function ($id) {
             $pinjam = Peminjaman::findOrFail($id);
-            if ($pinjam->buku->Stok <= 0) return back()->with('error', 'Stok buku habis, tidak bisa approve!');
-            
+            if ($pinjam->buku->Stok <= 0) return back()->with('error', 'Stok buku habis!');
             $pinjam->buku->decrement('Stok');
             $pinjam->update(['StatusPeminjaman' => 'Dipinjam', 'TanggalPeminjaman' => now()]);
             return back()->with('success', 'Peminjaman disetujui!');
@@ -158,7 +146,12 @@ Route::get('/dashboard', function (Request $request) {
             return back()->with('success', 'Permintaan pinjam ditolak!');
         })->name('peminjaman.tolak');
 
-        // Buku & Kategori
+        // FITUR BARU: Approve & Tolak Pengembalian (Sinkron ke BukuController)
+        Route::put('/peminjaman/setujui-kembali/{id}', [BukuController::class, 'setujuiKembali'])->name('peminjaman.setujui_kembali');
+        Route::put('/peminjaman/tolak-kembali/{id}', [BukuController::class, 'tolakKembali'])->name('peminjaman.tolak_kembali');
+        Route::delete('/peminjaman/hapus/{id}', [BukuController::class, 'destroyLaporan'])->name('peminjaman.destroy');
+
+        // CRUD Buku
         Route::get('/buku/tambah', function () { 
             $daftarKategori = KategoriBuku::all();
             return view('buku.tambah', compact('daftarKategori')); 
@@ -197,6 +190,7 @@ Route::get('/dashboard', function (Request $request) {
             return back()->with('success_hapus', 'Buku telah dihapus!');
         })->name('buku.hapus');
 
+        // Kategori
         Route::get('/kategori', function () {
             return view('admin.kategori', ['kategori' => KategoriBuku::all()]);
         })->name('kategori.index');
@@ -212,18 +206,12 @@ Route::get('/dashboard', function (Request $request) {
         })->name('kategori.hapus');
     });
 
-    // 5. LAPORAN & CETAK
+    // 5. LAPORAN
     Route::get('/laporan', function (Request $request) {
         if (Auth::user()->Role == 'peminjam') return redirect('/dashboard');
         $laporan = Peminjaman::with(['user', 'buku'])->latest()->get();
         return view('buku.laporan', compact('laporan'));
     })->name('laporan');
-
-    Route::get('/laporan/cetak', function () {
-        if (Auth::user()->Role == 'peminjam') return redirect('/dashboard');
-        $laporan = Peminjaman::with(['user', 'buku'])->get();
-        return view('buku.cetak_laporan', compact('laporan'));
-    })->name('laporan.cetak');
 
     // 6. MANAJEMEN PENGGUNA (Khusus Admin)
     Route::middleware(['checkRole:administrator'])->group(function () {
@@ -232,32 +220,18 @@ Route::get('/dashboard', function (Request $request) {
             return view('auth.manajemen_user', compact('users'));
         })->name('user.index');
 
-        Route::post('/pengguna/tambah-petugas', function (Request $request) {
-            User::create([
-                'Username' => $request->Username,
-                'Password' => Hash::make($request->Password),
-                'Email' => $request->Email,
-                'NamaLengkap' => $request->NamaLengkap,
-                'Alamat' => $request->Alamat,
-                'Role' => 'petugas'
-            ]);
-            return back()->with('success', 'Petugas berhasil ditambahkan!');
-        })->name('user.tambah_petugas');
-
+        Route::put('/user/approve/{id}', [AuthController::class, 'approveUser'])->name('user.approve');
+        Route::put('/user/toggle-status/{id}', [AuthController::class, 'toggleStatus'])->name('user.toggle_status');
+        Route::delete('/user/hapus/{id}', [AuthController::class, 'hapusUser'])->name('user.hapus');
+        
         Route::put('/pengguna/update-role/{id}', function (Request $request, $id) {
             $user = User::findOrFail($id);
             $user->update(['Role' => $request->Role]);
             return back()->with('success', 'Role berhasil diperbarui!');
         })->name('user.update_role');
-
-        Route::delete('/pengguna/{id}', function ($id) {
-            if($id == Auth::id()) return back()->with('error', 'Tidak bisa hapus akun sendiri!');
-            User::destroy($id);
-            return back()->with('success', 'User dihapus!');
-        })->name('user.hapus');
     });
 
-    // 7. ULASAN & 8. PROFIL (Sama seperti sebelumnya)
+    // 7. ULASAN & PROFIL
     Route::get('/ulasan', function () {
         $ulasan = UlasanBuku::where('UserID', Auth::id())->with('buku')->latest()->get();
         return view('buku.ulasan_saya', compact('ulasan'));
@@ -276,4 +250,10 @@ Route::get('/dashboard', function (Request $request) {
         User::where('UserID', Auth::id())->update($request->only(['NamaLengkap', 'Email', 'Alamat']));
         return back()->with('success_profil', 'Profil diperbarui!');
     })->name('profil.update');
+
+    Route::get('/pengguna', [AuthController::class, 'indexUser'])->name('user.index');
+Route::post('/pengguna/tambah-petugas', [AuthController::class, 'tambahPetugas'])->name('user.tambah_petugas');
+Route::post('/pengguna/toggle-status/{id}', [AuthController::class, 'toggleStatus'])->name('user.toggle_status');
+Route::post('/pengguna/update-role/{id}', [AuthController::class, 'updateRole'])->name('user.update_role');
+Route::delete('/pengguna/hapus/{id}', [AuthController::class, 'hapusUser'])->name('user.hapus');
 });
